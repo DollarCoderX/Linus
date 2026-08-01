@@ -36,9 +36,8 @@ import { TtsService } from './voice/ttsService';
 
 loadDotEnv();
 
-const INPUT_SIZE = { width: 520, height: 280 };
-const INPUT_EXPANDED_SIZE = { width: 520, height: 500 };
-const EXPANDED_SIZE = { width: 720, height: 600 };
+const INPUT_SIZE = { width: 540, height: 118 };
+const INPUT_EXPANDED_SIZE = { width: 540, height: 430 };
 const ORB_SIZE = { width: 68, height: 68 };
 
 let mainWindow: BrowserWindow | null = null;
@@ -52,7 +51,7 @@ let sttService: SttService;
 let browserAutomation: BrowserAutomation;
 let memoryStore: MemoryStore;
 
-const windowModes: LinusWindowMode[] = ['input', 'expanded', 'workspace', 'orb'];
+const windowModes: LinusWindowMode[] = ['input', 'orb'];
 const themes: LinusTheme[] = ['mist', 'dark'];
 const uiStates: LinusUiState[] = [
   'idle',
@@ -111,41 +110,6 @@ mainWindow.once('ready-to-show', () => {
     }
   });
 
-  // Drag-to-top-edge detection for workspace mode
-  let dragCheckInterval: ReturnType<typeof setInterval> | null = null;
-  mainWindow.on('move', () => {
-    if (!mainWindow || settings.windowMode !== 'input') return;
-
-    const bounds = mainWindow.getBounds();
-    const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
-    const threshold = 15;
-
-    if (bounds.y <= display.workArea.y + threshold) {
-      if (!dragCheckInterval) {
-        dragCheckInterval = setInterval(() => {
-          if (!mainWindow) {
-            if (dragCheckInterval) clearInterval(dragCheckInterval);
-            dragCheckInterval = null;
-            return;
-          }
-          const currentBounds = mainWindow.getBounds();
-          if (currentBounds.y <= display.workArea.y + threshold) {
-            if (dragCheckInterval) clearInterval(dragCheckInterval);
-            dragCheckInterval = null;
-            setWindowMode('workspace');
-          }
-        }, 150);
-      }
-    }
-  });
-
-  mainWindow.on('closed', () => {
-    if (dragCheckInterval) {
-      clearInterval(dragCheckInterval);
-      dragCheckInterval = null;
-    }
-  });
-
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
@@ -159,21 +123,13 @@ function resolveInitialBounds(mode: LinusWindowMode): Electron.BrowserWindowCons
   const saved = settings?.bounds[mode];
   let size: { width: number; height: number };
 
-  if (mode === 'orb') {
-    size = ORB_SIZE;
-  } else if (mode === 'expanded') {
-    size = EXPANDED_SIZE;
-  } else if (mode === 'workspace') {
-    size = { width: workArea.width, height: workArea.height };
-  } else {
-    size = INPUT_SIZE;
-  }
+  size = mode === 'orb' ? ORB_SIZE : INPUT_SIZE;
 
   return {
-    width: saved?.width ?? size.width,
-    height: saved?.height ?? size.height,
+    width: size.width,
+    height: size.height,
     x: saved?.x ?? Math.round(workArea.x + (workArea.width - size.width) / 2),
-    y: saved?.y ?? (mode === 'workspace' ? workArea.y : Math.round(workArea.y + workArea.height * 0.18))
+    y: saved?.y ?? Math.round(workArea.y + workArea.height * 0.18)
   };
 }
 
@@ -182,7 +138,13 @@ function persistCurrentBounds(): void {
     return;
   }
 
-  settings.bounds[settings.windowMode] = mainWindow.getBounds();
+  const bounds = mainWindow.getBounds();
+  const fixedSize = resolveWindowSize(settings.windowMode);
+  settings.bounds[settings.windowMode] = {
+    ...bounds,
+    width: fixedSize.width,
+    height: fixedSize.height
+  };
   writeSettings(appDataRoot, settings);
 }
 
@@ -196,20 +158,12 @@ function appState(): LinusAppState {
     hotkey: settings.hotkey,
     appDataPath: appDataRoot,
     providers: buildProviderRegistry(env),
-    skills: skillOptions(),
-    sidebarPanel: settings.windowMode === 'workspace' ? 'chats' : '',
-    sidebarOpen: settings.windowMode === 'workspace',
-    rightSidebarOpen: false
+    skills: skillOptions()
   };
 }
 
 function resolveWindowSize(mode: LinusWindowMode): { width: number; height: number } {
   if (mode === 'orb') return ORB_SIZE;
-  if (mode === 'expanded') return EXPANDED_SIZE;
-  if (mode === 'workspace') {
-    const display = screen.getPrimaryDisplay();
-    return { width: display.workArea.width, height: display.workArea.height };
-  }
   return INPUT_SIZE;
 }
 
@@ -225,19 +179,17 @@ function setWindowMode(mode: LinusWindowMode): LinusAppState {
 
   mainWindow.setResizable(true);
 
-  if (mode === 'workspace') {
-    const display = screen.getPrimaryDisplay();
-    mainWindow.setBounds(display.workArea, true);
-    mainWindow.setResizable(true);
-   
+  if (mode === 'input' && settings.bounds.input) {
+    mainWindow.setBounds({ ...settings.bounds.input, width: size.width, height: size.height }, true);
   } else if (savedBounds) {
     mainWindow.setBounds({ ...savedBounds, width: size.width, height: size.height }, true);
   } else {
     const bounds = mainWindow.getBounds();
+    const fallbackInput = settings.bounds.input;
     mainWindow.setBounds(
       {
-        x: Math.round(bounds.x + bounds.width / 2 - size.width / 2),
-        y: bounds.y,
+        x: fallbackInput?.x ?? Math.round(bounds.x + bounds.width / 2 - size.width / 2),
+        y: fallbackInput?.y ?? bounds.y,
         width: size.width,
         height: size.height
       },
@@ -245,13 +197,8 @@ function setWindowMode(mode: LinusWindowMode): LinusAppState {
     );
   }
 
-  if (mode !== 'workspace') {
-    mainWindow.setResizable(false);
- 
-    mainWindow.setAlwaysOnTop(true, 'floating');
-  } else {
-    mainWindow.setAlwaysOnTop(true);
-  }
+  mainWindow.setResizable(false);
+  mainWindow.setAlwaysOnTop(true, 'floating');
 
   mainWindow.show();
   mainWindow.focus();
@@ -588,51 +535,6 @@ function registerIpc(): void {
   ipcMain.handle('linus:close', () => {
     setWindowMode('orb');
     return appState();
-  });
-
-
-ipcMain.handle('linus:set-sidebar-panel', (_event, panel: unknown) => {
-    if (typeof panel !== 'string') {
-      return appState();
-    }
-    mainWindow?.webContents.send('linus:state-changed', {
-      ...appState(),
-      sidebarPanel: panel,
-      sidebarOpen: true
-    });
-    return {
-      ...appState(),
-      sidebarPanel: panel,
-      sidebarOpen: true
-    };
-  });
-
-  ipcMain.handle('linus:set-sidebar-open', (_event, open: unknown) => {
-    if (typeof open !== 'boolean') {
-      return appState();
-    }
-    mainWindow?.webContents.send('linus:state-changed', {
-      ...appState(),
-      sidebarOpen: open
-    });
-    return {
-      ...appState(),
-      sidebarOpen: open
-    };
-  });
-
-  ipcMain.handle('linus:set-right-sidebar-open', (_event, open: unknown) => {
-    if (typeof open !== 'boolean') {
-      return appState();
-    }
-    mainWindow?.webContents.send('linus:state-changed', {
-      ...appState(),
-      rightSidebarOpen: open
-    });
-    return {
-      ...appState(),
-      rightSidebarOpen: open
-    };
   });
 }
 

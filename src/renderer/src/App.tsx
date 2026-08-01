@@ -42,10 +42,7 @@ const fallbackState: LinusAppState = {
   hotkey: 'CommandOrControl+Space',
   appDataPath: '',
   providers: [],
-  skills: [],
-  sidebarPanel: '',
-  sidebarOpen: false,
-  rightSidebarOpen: false
+  skills: []
 };
 
 const commandItems = [
@@ -140,9 +137,13 @@ export function App(): JSX.Element {
   }, [appState.mode]);
 
   useEffect(() => {
-    const expanded = selectorOpen || prompt.trim().startsWith('/') || Boolean(taskPreview?.responseText || taskPreview?.error || taskPreview?.imageUrl);
+    const expanded =
+      selectorOpen ||
+      prompt.trim().startsWith('/') ||
+      attachments.length > 0 ||
+      Boolean(taskPreview?.responseText || taskPreview?.error || taskPreview?.imageUrl);
     window.linus.setSurfaceExpanded(expanded).catch(() => undefined);
-  }, [selectorOpen, prompt, taskPreview]);
+  }, [selectorOpen, prompt, taskPreview, attachments.length]);
 
   useEffect(() => {
     if (appState.uiState !== 'thinking') {
@@ -151,11 +152,11 @@ export function App(): JSX.Element {
     }
 
     setThinkingStatus('Thinking...');
-    const firstTimer = window.setTimeout(() => setThinkingStatus('Finding solution'), 7000);
-    const secondTimer = window.setTimeout(() => setThinkingStatus('Talking to dinosaurs'), 14000);
-    const thirdTimer = window.setTimeout(() => setThinkingStatus('Bribing Shapes...'), 21000);
-    const fourthTimer = window.setTimeout(() => setThinkingStatus('Considering...'), 28000);
-    const fifthTimer = window.setTimeout(() => setThinkingStatus('Presenting coffee to the server...'), 35000);
+    const firstTimer = window.setTimeout(() => setThinkingStatus('Planning...'), 7000);
+    const secondTimer = window.setTimeout(() => setThinkingStatus('Using tools...'), 14000);
+    const thirdTimer = window.setTimeout(() => setThinkingStatus('Verifying...'), 21000);
+    const fourthTimer = window.setTimeout(() => setThinkingStatus('Preparing response...'), 28000);
+    const fifthTimer = window.setTimeout(() => setThinkingStatus('Still working...'), 35000);
 
     return () => {
       window.clearTimeout(firstTimer);
@@ -367,10 +368,8 @@ export function App(): JSX.Element {
     );
   }
 
-  const workspaceMode = appState.mode === 'workspace';
-
   return (
-    <main className={`linus-stage ${workspaceMode ? 'workspace-stage' : ''}`} data-theme={appState.theme}>
+    <main className="linus-stage" data-theme={appState.theme}>
       <motion.section
         className="linus-stack drag-region"
         initial={{ opacity: 0, y: -8, scale: 0.985 }}
@@ -581,7 +580,7 @@ function Orb({
   return (
     <main className="orb-stage drag-region">
       <motion.button
-        className="linus-orb drag"
+        className="linus-orb no-drag"
         data-state={state}
         title="Open Linus"
         onClick={onExpand}
@@ -843,35 +842,26 @@ function ActivityStrip({ steps }: { steps: ActivityStep[] }): JSX.Element {
 }
 
 function ProviderIcon({ providerId }: { providerId: ProviderId }): JSX.Element {
-  return <span className="provider-logo" data-provider={providerId}>{providerLogoText(providerId)}</span>;
+  const label = providerShortLabel(providerId);
+  return (
+    <span className="provider-logo" data-provider={providerId} aria-label={providerId}>
+      {providerId === 'auto' ? <span className="auto-glyph">A</span> : label}
+    </span>
+  );
 }
 
-function providerLogoText(providerId: ProviderId): string {
-  if (providerId === 'groq') {
-    return 'Groq';
-  }
+function providerShortLabel(providerId: ProviderId): string {
+  const labels: Record<ProviderId, string> = {
+    auto: 'A',
+    groq: 'G',
+    gemini: '✦',
+    openrouter: 'OR',
+    ollama: 'Ol',
+    pollinations: 'P',
+    lla5: 'L5'
+  };
 
-  if (providerId === 'gemini') {
-    return 'Gemini';
-  }
-
-  if (providerId === 'openrouter') {
-    return 'OR';
-  }
-
-  if (providerId === 'ollama') {
-    return 'Ollama';
-  }
-
-  if (providerId === 'pollinations') {
-    return 'Poll';
-  }
-
-  if (providerId === 'lla5') {
-    return 'L5';
-  }
-
-  return 'A';
+  return labels[providerId] ?? 'A';
 }
 
 function readAttachment(file: File): Promise<LinusAttachment> {

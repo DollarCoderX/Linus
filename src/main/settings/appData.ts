@@ -11,8 +11,6 @@ export interface PersistedSettings {
   windowMode: LinusWindowMode;
   bounds: {
     input?: Electron.Rectangle;
-    expanded?: Electron.Rectangle;
-    workspace?: Electron.Rectangle;
     orb?: Electron.Rectangle;
   };
 }
@@ -69,10 +67,14 @@ export function readSettings(root: string): PersistedSettings {
   }
 
   try {
-    return {
+    const parsed = {
       ...defaultSettings,
       ...JSON.parse(readFileSync(filePath, 'utf8'))
     };
+    if (parsed.windowMode !== 'input' && parsed.windowMode !== 'orb') {
+      parsed.windowMode = 'input';
+    }
+    return parsed;
   } catch {
     return defaultSettings;
   }

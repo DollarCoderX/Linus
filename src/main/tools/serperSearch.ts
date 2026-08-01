@@ -19,7 +19,7 @@ export function detectSerperIntent(prompt: string): SerperIntent | null {
   const text = prompt.trim();
   const match = text.match(
     /\b(?:search|find|show|get)\s+(?:me\s+)?(?:for\s+)?(?:(\d{1,2})\s+)?(images?|pictures?|photos?|news|videos?|youtube\s+videos?|web\s+results?|results)\s+(?:of|about|for|on)?\s+(.+)$/i
-  );
+  ) ?? text.match(/^(?:(\d{1,2})\s+)?(images?|pictures?|photos?|news|videos?|youtube\s+videos?|web\s+results?|results)\s+(?:of|about|for|on)?\s+(.+)$/i);
 
   if (!match?.[3]) {
     return null;

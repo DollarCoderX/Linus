@@ -24,10 +24,7 @@ const bridge: LinusBridge = {
   submitPrompt: (prompt: string, attachments?: LinusAttachment[]) =>
     ipcRenderer.invoke('linus:submit-prompt', prompt, attachments),
   close: () => ipcRenderer.invoke('linus:close'),
-  focusInputReady: () => ipcRenderer.invoke('linus:focus-input-ready'),
-  setSidebarPanel: (panel: string) => ipcRenderer.invoke('linus:set-sidebar-panel', panel),
-  setSidebarOpen: (open: boolean) => ipcRenderer.invoke('linus:set-sidebar-open', open),
-  setRightSidebarOpen: (open: boolean) => ipcRenderer.invoke('linus:set-right-sidebar-open', open)
+  focusInputReady: () => ipcRenderer.invoke('linus:focus-input-ready')
 };
 
 contextBridge.exposeInMainWorld('linus', bridge);

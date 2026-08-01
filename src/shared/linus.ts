@@ -1,4 +1,4 @@
-export type LinusWindowMode = 'input' | 'expanded' | 'workspace' | 'orb';
+export type LinusWindowMode = 'input' | 'orb';
 
 export type LinusUiState =
   | 'idle'
@@ -30,13 +30,6 @@ export interface ProviderOption {
   capabilities: string[];
 }
 
-export interface WorkspaceItem {
-  id: string;
-  label: string;
-  icon: string;
-  section: 'tools' | 'workspaces' | 'system';
-}
-
 export interface LinusAppState {
   mode: LinusWindowMode;
   uiState: LinusUiState;
@@ -47,9 +40,6 @@ export interface LinusAppState {
   appDataPath: string;
   providers: ProviderOption[];
   skills: SkillOption[];
-  sidebarPanel: string;
-  sidebarOpen: boolean;
-  rightSidebarOpen: boolean;
 }
 
 export interface ActivityStep {
@@ -98,7 +88,4 @@ export interface LinusBridge {
   submitPrompt: (prompt: string, attachments?: LinusAttachment[]) => Promise<LinusTaskPreview>;
   close: () => Promise<void>;
   focusInputReady: () => Promise<void>;
-  setSidebarPanel: (panel: string) => Promise<LinusAppState>;
-  setSidebarOpen: (open: boolean) => Promise<LinusAppState>;
-  setRightSidebarOpen: (open: boolean) => Promise<LinusAppState>;
 }
