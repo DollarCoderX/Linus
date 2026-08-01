@@ -227,14 +227,7 @@ async function playAudioFile(audioPath: string): Promise<void> {
       $player.add_MediaFailed({ $script:failed = $true; $script:done = $true });
       $uri = New-Object System.Uri('${escapedPath}');
       $player.Open($uri);
-      $timeout = (Get-Date).AddSeconds(3);
-      while (-not $player.NaturalDuration.HasTimeSpan -and -not $failed -and (Get-Date) -lt $timeout) {
-        Start-Sleep -Milliseconds 100;
-      }
-      if (-not $player.NaturalDuration.HasTimeSpan) {
-        throw "Audio file did not load in time.";
-      }
-      $player.Volume = 1.0;
+      Start-Sleep -Milliseconds 250;
       $player.Play();
       $limit = (Get-Date).AddSeconds(45);
       while (-not $done -and (Get-Date) -lt $limit) {
