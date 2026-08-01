@@ -6,7 +6,10 @@ export interface LinusEnv {
   defaultProvider: ProviderId;
   speakResponses: boolean;
   systemPrompt: string;
+  // Groq — up to 3 keys for round-robin routing
   groqTextApiKey: string;
+  groqTextApiKey2: string;
+  groqTextApiKey3: string;
   groqTextModel: string;
   groqVisionApiKey: string;
   groqVisionModel: string;
@@ -16,10 +19,16 @@ export interface LinusEnv {
   groqTtsResponseFormat: 'wav';
   groqSttApiKey: string;
   groqSttModel: string;
+  // Gemini — up to 3 keys
   geminiApiKey: string;
+  geminiApiKey2: string;
+  geminiApiKey3: string;
   geminiModel: string;
   geminiTtsProvider: TtsProviderChoice;
+  // OpenRouter — up to 3 keys
   openRouterApiKey: string;
+  openRouterApiKey2: string;
+  openRouterApiKey3: string;
   openRouterModel: string;
   openRouterHttpReferer: string;
   openRouterAppTitle: string;
@@ -92,7 +101,10 @@ export function readLinusEnv(): LinusEnv {
       readString('CORTEX_SYSTEM_PROMPT') ||
       readString('LUNA_SYSTEM_PROMPT') ||
       defaultSystemPrompt(),
+    // Groq — 3-key pool for round-robin routing
     groqTextApiKey: readString('GROQ_TEXT_API_KEY') || readString('GROQ_API_KEY'),
+    groqTextApiKey2: readString('GROQ_TEXT_API_KEY_2') || readString('GROQ_API_KEY_2'),
+    groqTextApiKey3: readString('GROQ_TEXT_API_KEY_3') || readString('GROQ_API_KEY_3'),
     groqTextModel: readString('GROQ_TEXT_MODEL') || 'llama-3.3-70b-versatile',
     groqVisionApiKey: readString('GROQ_VISION_API_KEY') || readString('GROQ_API_KEY'),
     groqVisionModel: readString('GROQ_VISION_MODEL') || 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -102,10 +114,16 @@ export function readLinusEnv(): LinusEnv {
     groqTtsResponseFormat: 'wav',
     groqSttApiKey: readString('GROQ_STT_API_KEY') || readString('GROQ_API_KEY'),
     groqSttModel: readString('GROQ_STT_MODEL') || 'whisper-large-v3-turbo',
+    // Gemini — 3-key pool
     geminiApiKey: readString('GEMINI_API_KEY') || readString('GOOGLE_GEMINI_API_KEY'),
+    geminiApiKey2: readString('GEMINI_API_KEY_2') || readString('GOOGLE_GEMINI_API_KEY_2'),
+    geminiApiKey3: readString('GEMINI_API_KEY_3') || readString('GOOGLE_GEMINI_API_KEY_3'),
     geminiModel: readString('GEMINI_MODEL') || 'gemini-2.5-flash',
     geminiTtsProvider: readTtsProvider('GEMINI_TTS_PROVIDER', 'groq'),
+    // OpenRouter — 3-key pool
     openRouterApiKey: readString('OPENROUTER_API_KEY'),
+    openRouterApiKey2: readString('OPENROUTER_API_KEY_2'),
+    openRouterApiKey3: readString('OPENROUTER_API_KEY_3'),
     openRouterModel: readString('OPENROUTER_MODEL') || 'openrouter/free',
     openRouterHttpReferer: readString('OPENROUTER_HTTP_REFERER') || 'http://localhost:5173',
     openRouterAppTitle: readString('OPENROUTER_APP_TITLE') || 'Linus Desktop Agent',
@@ -167,7 +185,7 @@ function unquote(value: string): string {
 function defaultSystemPrompt(): string {
   return [
     'You are Linus, a Windows desktop AI agent created by Shapes.',
-    'You are not a chatbot in a window; you are a command surface for the user computer.',
+    'You are not a chatbot in a window; you are a command surface for the user\'s computer.',
     'Operate like a serious desktop operator for daily life, study, coding, research, files, browser work, documents, vision, voice, and Windows automation.',
     'Be concise, calm, technically accurate, practical, and action-oriented.',
     'Use tools when they are available and useful. Never claim a local action, browser action, file change, screenshot, or memory update happened unless the app reports a verified tool result.',

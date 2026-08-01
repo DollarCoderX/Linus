@@ -11,6 +11,18 @@ const chatCapabilities: ProviderCapabilities = {
   textToSpeech: false
 };
 
+// Per-provider round-robin counters (in-memory per session)
+const keyCounters: Record<string, number> = { groq: 0, gemini: 0, openrouter: 0 };
+
+/** Pick next key from up to 3 configured keys using round-robin. */
+function pickKey(provider: string, keys: string[]): string {
+  const available = keys.filter(Boolean);
+  if (available.length === 0) return '';
+  const index = keyCounters[provider] % available.length;
+  keyCounters[provider] = (keyCounters[provider] + 1) % available.length;
+  return available[index];
+}
+
 export function createProviders(env: LinusEnv): AiProvider[] {
   return [
     createGroqProvider(env),
@@ -22,6 +34,9 @@ export function createProviders(env: LinusEnv): AiProvider[] {
 }
 
 function createGroqProvider(env: LinusEnv): AiProvider {
+  const allKeys = [env.groqTextApiKey, env.groqTextApiKey2, env.groqTextApiKey3];
+  const availableKeys = allKeys.filter(Boolean);
+
   return {
     id: 'groq',
     displayName: 'Groq',
@@ -31,15 +46,18 @@ function createGroqProvider(env: LinusEnv): AiProvider {
       toolCalling: true,
       textToSpeech: Boolean(env.groqTtsApiKey)
     },
-    isAvailable: async () => Boolean(env.groqTextApiKey),
+    isAvailable: async () => availableKeys.length > 0,
     chat: async (request) => {
-      if (!env.groqTextApiKey) {
+      if (availableKeys.length === 0) {
         throw new Error('Groq text is not configured. Add GROQ_TEXT_API_KEY to .env.');
       }
 
+      const apiKey = pickKey('groq', availableKeys);
+      console.info(`[Linus Router] Groq using key slot ${availableKeys.indexOf(apiKey) + 1}/${availableKeys.length}`);
+
       const content = await openAiCompatibleChat({
         endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-        apiKey: env.groqTextApiKey,
+        apiKey,
         model: request.model || env.groqTextModel,
         messages: request.messages,
         signal: request.signal
@@ -51,6 +69,9 @@ function createGroqProvider(env: LinusEnv): AiProvider {
 }
 
 function createOpenRouterProvider(env: LinusEnv): AiProvider {
+  const allKeys = [env.openRouterApiKey, env.openRouterApiKey2, env.openRouterApiKey3];
+  const availableKeys = allKeys.filter(Boolean);
+
   return {
     id: 'openrouter',
     displayName: 'OpenRouter',
@@ -61,15 +82,18 @@ function createOpenRouterProvider(env: LinusEnv): AiProvider {
       vision: true,
       structuredOutput: true
     },
-    isAvailable: async () => Boolean(env.openRouterApiKey),
+    isAvailable: async () => availableKeys.length > 0,
     chat: async (request) => {
-      if (!env.openRouterApiKey) {
+      if (availableKeys.length === 0) {
         throw new Error('OpenRouter is not configured. Add OPENROUTER_API_KEY to .env.');
       }
 
+      const apiKey = pickKey('openrouter', availableKeys);
+      console.info(`[Linus Router] OpenRouter using key slot ${availableKeys.indexOf(apiKey) + 1}/${availableKeys.length}`);
+
       const content = await openAiCompatibleChat({
         endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-        apiKey: env.openRouterApiKey,
+        apiKey,
         model: request.model || env.openRouterModel,
         messages: request.messages,
         signal: request.signal,
@@ -85,6 +109,9 @@ function createOpenRouterProvider(env: LinusEnv): AiProvider {
 }
 
 function createGeminiProvider(env: LinusEnv): AiProvider {
+  const allKeys = [env.geminiApiKey, env.geminiApiKey2, env.geminiApiKey3];
+  const availableKeys = allKeys.filter(Boolean);
+
   return {
     id: 'gemini',
     displayName: 'Gemini',
@@ -93,15 +120,18 @@ function createGeminiProvider(env: LinusEnv): AiProvider {
       vision: true,
       structuredOutput: true
     },
-    isAvailable: async () => Boolean(env.geminiApiKey),
+    isAvailable: async () => availableKeys.length > 0,
     chat: async (request) => {
-      if (!env.geminiApiKey) {
+      if (availableKeys.length === 0) {
         throw new Error('Gemini is not configured. Add GEMINI_API_KEY to .env.');
       }
 
+      const apiKey = pickKey('gemini', availableKeys);
+      console.info(`[Linus Router] Gemini using key slot ${availableKeys.indexOf(apiKey) + 1}/${availableKeys.length}`);
+
       const model = request.model || env.geminiModel;
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.geminiApiKey)}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

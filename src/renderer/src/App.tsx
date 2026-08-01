@@ -46,37 +46,17 @@ const fallbackState: LinusAppState = {
 };
 
 const commandItems = [
-  {
-    id: 'skills',
-    label: 'Pick Skill',
-    detail: 'Switch Linus mode for this period'
-  },
-  {
-    id: 'dark',
-    label: 'Dark Theme',
-    detail: 'Switch to the darker glass style'
-  },
-  {
-    id: 'light',
-    label: 'Light Theme',
-    detail: 'Switch to the soft mist style'
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    detail: 'Provider, voice, memory, app data'
-  },
-  {
-    id: 'voice',
-    label: 'Voice',
-    detail: 'Zira-first Windows speech fallback'
-  },
-  {
-    id: 'providers',
-    label: 'Providers',
-    detail: 'Groq, Gemini, OpenRouter, Ollama'
-  }
+  { id: 'skills', label: 'Pick Skill', detail: 'Switch Linus mode for this period' },
+  { id: 'dark', label: 'Dark Theme', detail: 'Switch to the darker glass style' },
+  { id: 'light', label: 'Light Theme', detail: 'Switch to the soft mist style' },
+  { id: 'settings', label: 'Settings', detail: 'Provider, voice, memory, app data' },
+  { id: 'voice', label: 'Voice', detail: 'Zira-first Windows speech fallback' },
+  { id: 'providers', label: 'Providers', detail: 'Groq, Gemini, OpenRouter, Ollama' }
 ];
+
+// iOS spring config
+const spring = { type: 'spring', stiffness: 400, damping: 30 };
+const softSpring = { type: 'spring', stiffness: 280, damping: 26 };
 
 export function App(): JSX.Element {
   const [appState, setAppState] = useState<LinusAppState>(fallbackState);
@@ -131,7 +111,6 @@ export function App(): JSX.Element {
         setTaskPreview(null);
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [appState.mode]);
@@ -150,33 +129,20 @@ export function App(): JSX.Element {
       setThinkingStatus('Thinking...');
       return;
     }
-
     setThinkingStatus('Thinking...');
-    const firstTimer = window.setTimeout(() => setThinkingStatus('Planning...'), 7000);
-    const secondTimer = window.setTimeout(() => setThinkingStatus('Using tools...'), 14000);
-    const thirdTimer = window.setTimeout(() => setThinkingStatus('Verifying...'), 21000);
-    const fourthTimer = window.setTimeout(() => setThinkingStatus('Preparing response...'), 28000);
-    const fifthTimer = window.setTimeout(() => setThinkingStatus('Still working...'), 35000);
-
-    return () => {
-      window.clearTimeout(firstTimer);
-      window.clearTimeout(secondTimer);
-      window.clearTimeout(thirdTimer);
-      window.clearTimeout(fourthTimer);
-      window.clearTimeout(fifthTimer);
-    };
+    const t1 = window.setTimeout(() => setThinkingStatus('Planning...'), 7000);
+    const t2 = window.setTimeout(() => setThinkingStatus('Using tools...'), 14000);
+    const t3 = window.setTimeout(() => setThinkingStatus('Verifying...'), 21000);
+    const t4 = window.setTimeout(() => setThinkingStatus('Preparing response...'), 28000);
+    const t5 = window.setTimeout(() => setThinkingStatus('Still working...'), 35000);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); window.clearTimeout(t3); window.clearTimeout(t4); window.clearTimeout(t5); };
   }, [appState.uiState]);
 
-  function expandSurface(): void {
-    window.linus.setSurfaceExpanded(true).catch(() => undefined);
-  }
-
-  function collapseSurface(): void {
-    window.linus.setSurfaceExpanded(false).catch(() => undefined);
-  }
+  function expandSurface(): void { window.linus.setSurfaceExpanded(true).catch(() => undefined); }
+  function collapseSurface(): void { window.linus.setSurfaceExpanded(false).catch(() => undefined); }
 
   const selectedProvider = useMemo(
-    () => appState.providers.find((provider) => provider.id === appState.selectedProvider),
+    () => appState.providers.find((p) => p.id === appState.selectedProvider),
     [appState.providers, appState.selectedProvider]
   );
 
@@ -186,14 +152,13 @@ export function App(): JSX.Element {
       await handleSlashSubmit(prompt.trim());
       return;
     }
-
     setTaskPreview(null);
     setSpeechError(null);
     const preview = await window.linus.submitPrompt(prompt, attachments);
     setTaskPreview(preview);
+    setPrompt('');
     setAttachments([]);
   }
-  
 
   async function selectCommand(command: (typeof commandItems)[number]): Promise<void> {
     if (command.id === 'dark' || command.id === 'light') {
@@ -202,31 +167,28 @@ export function App(): JSX.Element {
       setPrompt('');
       return;
     }
-
     if (command.id === 'providers') {
       expandSurface();
       setSelectorOpen(true);
       setPrompt('');
       return;
     }
-
     if (command.id === 'skills') {
       expandSurface();
       setPrompt('/skill ');
       return;
     }
-
     setTaskPreview({
       statusText: command.label,
       responseText: command.id === 'settings'
-        ? `Linus settings are active. Provider: ${selectedProvider?.name ?? 'Auto'}. Skill: ${activeSkillName(appState)}. Theme: ${appState.theme}. Memory folder: ${appState.appDataPath}`
-        : 'Voice uses Groq TTS when configured, then Windows TTS. Windows voice preference is Microsoft Zira when available.',
+        ? `Linus settings active. Provider: ${selectedProvider?.name ?? 'Auto'}. Skill: ${activeSkillName(appState)}. Theme: ${appState.theme}. Memory: ${appState.appDataPath}`
+        : 'Voice uses Groq TTS when configured, then Windows TTS. Windows preference is Microsoft Zira.',
       providerName: 'Linus',
       model: `/${command.id}`,
       kind: 'tool',
       steps: [
         { id: 'open', label: `Opened ${command.label}`, status: 'done' },
-        { id: 'ready', label: 'Ready for your next move', status: 'done' }
+        { id: 'ready', label: 'Ready', status: 'done' }
       ]
     });
     setPrompt('');
@@ -253,7 +215,7 @@ export function App(): JSX.Element {
       kind: 'tool',
       steps: [
         { id: 'skill', label: `Selected ${skill.name}`, status: 'done' },
-        { id: 'ready', label: 'Mode will be included in future prompts', status: 'done' }
+        { id: 'ready', label: 'Mode active for future prompts', status: 'done' }
       ]
     });
   }
@@ -263,34 +225,23 @@ export function App(): JSX.Element {
       const nextState = await window.linus.setTheme(/^\/dark$/i.test(value) ? 'dark' : 'mist');
       setAppState(nextState);
       setPrompt('');
-      return;
     }
   }
 
   async function toggleRecording(): Promise<void> {
-    if (recording) {
-      stopRecording();
-      return;
-    }
-
+    if (recording) { stopRecording(); return; }
     setSpeechError(null);
     setRecording(true);
     await window.linus.stopSpeech();
     await window.linus.setUiState('listening');
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       const chunks: Blob[] = [];
       mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = async () => {
-        stream.getTracks().forEach((track) => track.stop());
+        stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         await window.linus.setUiState('thinking');
         try {
@@ -298,65 +249,49 @@ export function App(): JSX.Element {
           const text = await window.linus.transcribeAudio(await blob.arrayBuffer(), blob.type);
           setPrompt(text);
           inputRef.current?.focus();
-        } catch (error) {
-          setSpeechError(error instanceof Error ? error.message : 'Voice transcription failed.');
+        } catch (err) {
+          setSpeechError(err instanceof Error ? err.message : 'Voice transcription failed.');
         } finally {
           await window.linus.setUiState('idle');
         }
       };
-
       recorder.start();
       silenceTimerRef.current = window.setTimeout(stopRecording, 5500);
-    } catch (error) {
+    } catch (err) {
       setRecording(false);
       await window.linus.setUiState('idle');
-      setSpeechError(error instanceof Error ? error.message : 'Microphone permission failed.');
+      setSpeechError(err instanceof Error ? err.message : 'Microphone permission failed.');
     }
   }
 
   function stopRecording(): void {
-    if (silenceTimerRef.current) {
-      window.clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      recorder.stop();
-    }
+    if (silenceTimerRef.current) { window.clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== 'inactive') rec.stop();
   }
 
   async function chooseAttachments(files: FileList | null): Promise<void> {
-    if (!files?.length) {
-      return;
-    }
-
-    const currentImages = attachments.filter((attachment) => attachment.mimeType.startsWith('image/')).length;
+    if (!files?.length) return;
+    const currentImages = attachments.filter((a) => a.mimeType.startsWith('image/')).length;
     const currentDocs = attachments.length - currentImages;
     const selected: File[] = [];
-
     for (const file of Array.from(files)) {
       const isImage = file.type.startsWith('image/');
-      const imageCount = selected.filter((item) => item.type.startsWith('image/')).length;
+      const imageCount = selected.filter((i) => i.type.startsWith('image/')).length;
       const docCount = selected.length - imageCount;
-      if (isImage && currentImages + imageCount < 7) {
-        selected.push(file);
-      }
-      if (!isImage && currentDocs + docCount < 6) {
-        selected.push(file);
-      }
+      if (isImage && currentImages + imageCount < 7) selected.push(file);
+      if (!isImage && currentDocs + docCount < 6) selected.push(file);
     }
-
-    const nextAttachments = await Promise.all(selected.map(readAttachment));
-    setAttachments((current) => [...current, ...nextAttachments].slice(0, 13));
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    const next = await Promise.all(selected.map(readAttachment));
+    setAttachments((cur) => [...cur, ...next].slice(0, 13));
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   function removeAttachment(index: number): void {
-    setAttachments((current) => current.filter((_item, itemIndex) => itemIndex !== index));
+    setAttachments((cur) => cur.filter((_, i) => i !== index));
   }
+
+  const isBusy = appState.uiState === 'thinking' || appState.uiState === 'speaking';
 
   if (appState.mode === 'orb') {
     return (
@@ -372,22 +307,24 @@ export function App(): JSX.Element {
     <main className="linus-stage" data-theme={appState.theme}>
       <motion.section
         className="linus-stack drag-region"
-        initial={{ opacity: 0, y: -8, scale: 0.985 }}
+        initial={{ opacity: 0, y: -10, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        transition={softSpring}
       >
+        {/* Main input bar */}
         <form
           className="linus-shell"
           data-state={isInputFocused ? 'focused' : appState.uiState}
           onSubmit={handleSubmit}
         >
+          {/* Attach */}
           <button
             type="button"
             className="attach-button no-drag"
-            title="Add images or documents"
+            title="Attach files or images"
             onClick={() => fileInputRef.current?.click()}
           >
-            <Plus size={20} strokeWidth={2} />
+            <Plus size={18} strokeWidth={2.2} />
           </button>
           <input
             ref={fileInputRef}
@@ -395,129 +332,147 @@ export function App(): JSX.Element {
             type="file"
             accept="image/*,.txt,.md,.markdown,.json,.jsonc,.csv,.tsv,.log,.pdf,.js,.jsx,.ts,.tsx,.css,.html,.xml,.yaml,.yml,.toml,.ini,.env,.py,.java,.c,.cpp,.cs,.go,.rs,.php,.rb,.sql"
             multiple
-            onChange={(event) => chooseAttachments(event.currentTarget.files)}
+            onChange={(e) => chooseAttachments(e.currentTarget.files)}
           />
+
+          {/* Skill chip */}
           <button
             type="button"
             className="skill-chip no-drag"
-            title="Pick active skill"
-            onClick={() => {
-              expandSurface();
-              setPrompt('/skill ');
-            }}
+            title="Switch skill"
+            onClick={() => { expandSurface(); setPrompt('/skill '); }}
           >
             {activeSkillName(appState)}
           </button>
+
+          {/* Provider logo button */}
           <button
             type="button"
             className="provider-button no-drag"
-            title="Choose model provider"
-            onClick={() => {
-              expandSurface();
-              setSelectorOpen((open) => !open);
-            }}
+            title="Choose AI provider"
+            onClick={() => { expandSurface(); setSelectorOpen((o) => !o); }}
           >
-            <ProviderIcon providerId={selectedProvider?.id ?? 'auto'} />
+            <ProviderLogo providerId={selectedProvider?.id ?? 'auto'} size={22} />
           </button>
 
+          {/* Text input */}
           <input
             ref={inputRef}
             className="linus-input no-drag"
             value={prompt}
             placeholder={attachments.length ? 'Ask about these files...' : 'Describe what you want...'}
             spellCheck={false}
-            onChange={(event) => setPrompt(event.target.value)}
+            onChange={(e) => setPrompt(e.target.value)}
             onFocus={() => {
               setIsInputFocused(true);
-              if (appState.uiState !== 'thinking' && appState.uiState !== 'speaking') {
-                window.linus.setUiState('focused').catch(() => undefined);
-              }
+              if (!isBusy) window.linus.setUiState('focused').catch(() => undefined);
             }}
             onBlur={() => {
               setIsInputFocused(false);
-              if (appState.uiState === 'focused') {
-                window.linus.setUiState('idle').catch(() => undefined);
-              }
+              if (appState.uiState === 'focused') window.linus.setUiState('idle').catch(() => undefined);
             }}
           />
 
-          <button
-            type={appState.uiState === 'thinking' || appState.uiState === 'speaking' ? 'button' : 'submit'}
+          {/* Send / Stop */}
+          <motion.button
+            type={isBusy ? 'button' : 'submit'}
             className="send-button no-drag"
-            title={appState.uiState === 'thinking' || appState.uiState === 'speaking' ? 'Stop' : 'Send'}
-            disabled={!prompt.trim() && attachments.length === 0 && appState.uiState !== 'speaking'}
+            title={isBusy ? 'Stop' : 'Send'}
+            disabled={!prompt.trim() && attachments.length === 0 && !isBusy}
+            whileTap={{ scale: 0.9 }}
+            transition={{ duration: 0.1 }}
             onClick={() => {
-              if (appState.uiState === 'thinking' || appState.uiState === 'speaking') {
+              if (isBusy) {
                 window.linus.stopSpeech();
                 window.linus.setUiState('idle');
               }
             }}
           >
-            {appState.uiState === 'thinking' || appState.uiState === 'speaking' ? (
-              <Square size={15} fill="currentColor" strokeWidth={2} />
-            ) : (
-              <SendHorizontal size={17} strokeWidth={2} />
-            )}
-          </button>
+            <AnimatePresence mode="wait" initial={false}>
+              {isBusy ? (
+                <motion.span key="stop" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.15 }}>
+                  <Square size={13} fill="currentColor" strokeWidth={0} />
+                </motion.span>
+              ) : (
+                <motion.span key="send" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={{ duration: 0.15 }}>
+                  <SendHorizontal size={16} strokeWidth={2.1} />
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
 
-          <button
+          {/* Mic */}
+          <motion.button
             type="button"
-            className="icon-button no-drag"
+            className={`icon-button no-drag${recording ? ' recording' : ''}`}
             title={recording ? 'Stop listening' : 'Speak to Linus'}
+            whileTap={{ scale: 0.88 }}
             onClick={toggleRecording}
           >
-            {recording ? <Loader2 className="status-spin" size={18} /> : <Mic size={18} strokeWidth={1.9} />}
-          </button>
+            <AnimatePresence mode="wait" initial={false}>
+              {recording ? (
+                <motion.span key="rec" initial={{ scale: 0.6 }} animate={{ scale: 1 }} exit={{ scale: 0.6 }} transition={{ duration: 0.12 }}>
+                  <Loader2 className="status-spin" size={17} />
+                </motion.span>
+              ) : (
+                <motion.span key="mic" initial={{ scale: 0.6 }} animate={{ scale: 1 }} exit={{ scale: 0.6 }} transition={{ duration: 0.12 }}>
+                  <Mic size={17} strokeWidth={2} />
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
 
-          <button
+          {/* Close */}
+          <motion.button
             type="button"
             className="icon-button no-drag"
-            title="Collapse Linus"
-            onClick={() => {
-              if (appState.mode === 'input') {
-                window.linus.setWindowMode('orb').catch(() => undefined);
-              } else {
-        window.linus.setWindowMode('orb').catch(() => undefined);
-              }
-            }}
+            title="Minimize Linus"
+            whileTap={{ scale: 0.88 }}
+            onClick={() => window.linus.setWindowMode('orb').catch(() => undefined)}
           >
-            <X size={20} strokeWidth={1.8} />
-          </button>
+            <X size={18} strokeWidth={2} />
+          </motion.button>
         </form>
 
+        {/* Attachments */}
         <AnimatePresence>
-          {attachments.length > 0 ? (
+          {attachments.length > 0 && (
             <motion.div
               className="attachment-strip no-drag"
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.16 }}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={softSpring}
             >
-              {attachments.map((attachment, index) => (
-                <button
+              {attachments.map((att, i) => (
+                <motion.button
                   type="button"
                   className="attachment-thumb"
-                  data-kind={attachment.mimeType.startsWith('image/') ? 'image' : 'document'}
-                  data-loading={appState.uiState === 'thinking' || appState.uiState === 'tool'}
-                  key={`${attachment.name}-${index}`}
-                  title={`Remove ${attachment.name}`}
-                  onClick={() => removeAttachment(index)}
+                  data-kind={att.mimeType.startsWith('image/') ? 'image' : 'document'}
+                  data-loading={isBusy}
+                  key={`${att.name}-${i}`}
+                  title={`Remove ${att.name}`}
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.7, opacity: 0 }}
+                  transition={spring}
+                  onClick={() => removeAttachment(i)}
                 >
-                  {attachment.mimeType.startsWith('image/') ? (
-                    <img src={attachment.dataUrl} alt={attachment.name} />
+                  {att.mimeType.startsWith('image/') ? (
+                    <img src={att.dataUrl} alt={att.name} />
                   ) : (
-                    <strong>{fileBadge(attachment.name)}</strong>
+                    <strong>{fileBadge(att.name)}</strong>
                   )}
-                  <span>{index + 1}</span>
-                </button>
+                  <span>{i + 1}</span>
+                </motion.button>
               ))}
             </motion.div>
-          ) : null}
+          )}
         </AnimatePresence>
 
+        {/* Dismiss overlay */}
         <AnimatePresence>
-          {skillOpen || slashOpen || selectorOpen ? (
+          {(skillOpen || slashOpen || selectorOpen) && (
             <motion.button
               className="menu-dismiss no-drag"
               type="button"
@@ -527,13 +482,11 @@ export function App(): JSX.Element {
               exit={{ opacity: 0 }}
               onClick={() => {
                 setSelectorOpen(false);
-                if (prompt.trim().startsWith('/')) {
-                  setPrompt('');
-                }
+                if (prompt.trim().startsWith('/')) setPrompt('');
                 collapseSurface();
               }}
             />
-          ) : null}
+          )}
           {skillOpen ? (
             <SkillPalette skills={appState.skills} activeSkill={appState.activeSkill} onSelect={chooseSkill} />
           ) : slashOpen ? (
@@ -547,6 +500,7 @@ export function App(): JSX.Element {
           ) : null}
         </AnimatePresence>
 
+        {/* Status row */}
         <StatusLine
           appState={appState}
           taskPreview={taskPreview}
@@ -554,10 +508,11 @@ export function App(): JSX.Element {
           thinkingStatus={thinkingStatus}
         />
 
+        {/* Response */}
         <AnimatePresence>
-          {taskPreview?.responseText || taskPreview?.error || taskPreview?.imageUrl ? (
-            <ResponsePanel preview={taskPreview} speechError={speechError} />
-          ) : null}
+          {(taskPreview?.responseText || taskPreview?.error || taskPreview?.imageUrl) && (
+            <ResponsePanel preview={taskPreview!} speechError={speechError} />
+          )}
         </AnimatePresence>
       </motion.section>
     </main>
@@ -565,14 +520,13 @@ export function App(): JSX.Element {
 }
 
 function activeSkillName(appState: LinusAppState): string {
-  return appState.skills.find((skill) => skill.id === appState.activeSkill)?.name ?? 'Assistant';
+  return appState.skills.find((s) => s.id === appState.activeSkill)?.name ?? 'Assistant';
 }
 
-function Orb({
-  state,
-  provider,
-  onExpand
-}: {
+// ────────────────────────────────────────────────────────────────────────────
+// Orb
+// ────────────────────────────────────────────────────────────────────────────
+function Orb({ state, provider, onExpand }: {
   state: LinusUiState;
   provider?: ProviderOption;
   onExpand: () => void;
@@ -584,26 +538,22 @@ function Orb({
         data-state={state}
         title="Open Linus"
         onClick={onExpand}
-        onDoubleClick={onExpand}
-      initial={{ opacity: 0, scale: 0.88 }}
-      animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        initial={{ opacity: 0, scale: 0.82 }}
+        animate={{ opacity: 1, scale: 1 }}
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.93 }}
+        transition={spring}
       >
-        <ProviderIcon providerId={provider?.id ?? 'auto'} />
+        <ProviderLogo providerId={provider?.id ?? 'auto'} size={26} />
       </motion.button>
     </main>
   );
 }
 
-
-
-
-
-function ProviderSelector({
-  selected,
-  providers,
-  onSelect
-}: {
+// ────────────────────────────────────────────────────────────────────────────
+// Provider Selector
+// ────────────────────────────────────────────────────────────────────────────
+function ProviderSelector({ selected, providers, onSelect }: {
   selected: ProviderId;
   providers: ProviderOption[];
   onSelect: (provider: ProviderOption) => void;
@@ -611,21 +561,22 @@ function ProviderSelector({
   return (
     <motion.div
       className="provider-menu no-drag"
-      initial={{ opacity: 0, y: -4, scale: 0.98 }}
+      initial={{ opacity: 0, y: -6, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -4, scale: 0.98 }}
-      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+      transition={softSpring}
     >
       {providers.map((provider) => (
-        <button
+        <motion.button
           className="provider-option"
           type="button"
           key={provider.id}
           data-selected={provider.id === selected}
+          whileHover={{ x: 2 }}
           onClick={() => onSelect(provider)}
         >
           <span className="provider-mark">
-            <ProviderIcon providerId={provider.id} />
+            <ProviderLogo providerId={provider.id} size={24} />
           </span>
           <span className="provider-copy">
             <span>{provider.name}</span>
@@ -634,32 +585,28 @@ function ProviderSelector({
           <span className="provider-status" data-status={provider.status}>
             {provider.id === selected ? <Check size={14} /> : statusLabel(provider)}
           </span>
-        </button>
+        </motion.button>
       ))}
     </motion.div>
   );
 }
 
-function CommandPalette({
-  onSelect
-}: {
+// ────────────────────────────────────────────────────────────────────────────
+// Command Palette
+// ────────────────────────────────────────────────────────────────────────────
+function CommandPalette({ onSelect }: {
   onSelect: (command: (typeof commandItems)[number]) => void;
 }): JSX.Element {
   return (
     <motion.div
       className="command-menu no-drag"
-      initial={{ opacity: 0, y: -4, scale: 0.98 }}
+      initial={{ opacity: 0, y: -6, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -4, scale: 0.98 }}
-      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+      transition={softSpring}
     >
       {commandItems.map((command) => (
-        <button
-          className="command-option"
-          type="button"
-          key={command.id}
-          onClick={() => onSelect(command)}
-        >
+        <button className="command-option" type="button" key={command.id} onClick={() => onSelect(command)}>
           <span className="command-slash">/{command.id}</span>
           <span>
             <strong>{command.label}</strong>
@@ -671,11 +618,10 @@ function CommandPalette({
   );
 }
 
-function SkillPalette({
-  skills,
-  activeSkill,
-  onSelect
-}: {
+// ────────────────────────────────────────────────────────────────────────────
+// Skill Palette
+// ────────────────────────────────────────────────────────────────────────────
+function SkillPalette({ skills, activeSkill, onSelect }: {
   skills: SkillOption[];
   activeSkill: string;
   onSelect: (skill: SkillOption) => void;
@@ -683,10 +629,10 @@ function SkillPalette({
   return (
     <motion.div
       className="command-menu skill-menu no-drag"
-      initial={{ opacity: 0, y: -4, scale: 0.99 }}
+      initial={{ opacity: 0, y: -6, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -4, scale: 0.99 }}
-      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+      transition={softSpring}
     >
       {skills.map((skill) => (
         <button
@@ -707,12 +653,10 @@ function SkillPalette({
   );
 }
 
-function StatusLine({
-  appState,
-  taskPreview,
-  hasPrompt,
-  thinkingStatus
-}: {
+// ────────────────────────────────────────────────────────────────────────────
+// Status Line
+// ────────────────────────────────────────────────────────────────────────────
+function StatusLine({ appState, taskPreview, hasPrompt, thinkingStatus }: {
   appState: LinusAppState;
   taskPreview: LinusTaskPreview | null;
   hasPrompt: boolean;
@@ -720,13 +664,22 @@ function StatusLine({
 }): JSX.Element {
   const text = appState.uiState === 'thinking'
     ? thinkingStatus
-    : statusByState[appState.uiState] || taskPreview?.statusText || 'AI can make mistakes.';
+    : statusByState[appState.uiState] || taskPreview?.statusText || '';
   const showActivity = taskPreview && (appState.uiState === 'thinking' || appState.uiState === 'success');
 
   return (
     <div className="status-row no-drag">
       <span className="status-text">
-        {appState.uiState === 'thinking' ? <Loader2 className="status-spin" size={13} /> : null}
+        {appState.uiState === 'thinking' && (
+          <motion.span
+            initial={{ rotate: 0 }}
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}
+            style={{ display: 'inline-flex' }}
+          >
+            <Loader2 size={12} />
+          </motion.span>
+        )}
         {hasPrompt && appState.uiState === 'focused' ? 'Enter to send' : text}
       </span>
       <AnimatePresence>
@@ -736,10 +689,10 @@ function StatusLine({
   );
 }
 
-function ResponsePanel({
-  preview,
-  speechError
-}: {
+// ────────────────────────────────────────────────────────────────────────────
+// Response Panel
+// ────────────────────────────────────────────────────────────────────────────
+function ResponsePanel({ preview, speechError }: {
   preview: LinusTaskPreview;
   speechError: string | null;
 }): JSX.Element {
@@ -755,12 +708,10 @@ function ResponsePanel({
       text: selectedMedia?.snippet ?? preview.responseText ?? '',
       url: selectedMedia?.url?.startsWith('http') ? selectedMedia.url : undefined
     };
-
     if (navigator.share && (shareData.url || shareData.text)) {
       await navigator.share(shareData).catch(() => undefined);
       return;
     }
-
     await navigator.clipboard?.writeText(selectedMedia?.url ?? preview.responseText ?? '').catch(() => undefined);
   }
 
@@ -769,10 +720,10 @@ function ResponsePanel({
       className="response-panel no-drag"
       data-artifact={artifactOpen && artifactUrl ? 'true' : 'false'}
       data-kind={preview.kind ?? 'chat'}
-      initial={{ opacity: 0, y: 8, scale: 0.985, filter: 'blur(4px)' }}
+      initial={{ opacity: 0, y: 10, scale: 0.97, filter: 'blur(6px)' }}
       animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, y: 6, scale: 0.985, filter: 'blur(4px)' }}
-      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, y: 6, scale: 0.97, filter: 'blur(4px)' }}
+      transition={softSpring}
     >
       <div className="response-meta">
         <span>{preview.providerName ?? 'Linus'}</span>
@@ -783,11 +734,9 @@ function ResponsePanel({
           <div className="artifact-toolbar">
             <strong>{selectedMedia?.title ?? 'Generated image'}</strong>
             <span>
-              <a href={selectedMedia?.url ?? preview.imageUrl} download title="Download">
-                Download
-              </a>
+              <a href={selectedMedia?.url ?? preview.imageUrl} download title="Download">Download</a>
               <button type="button" onClick={shareArtifact}>Share</button>
-              <button type="button" onClick={() => setArtifactOpen(false)}>X</button>
+              <button type="button" onClick={() => setArtifactOpen(false)}>✕</button>
             </span>
           </div>
           {selectedMedia?.type === 'news' || selectedMedia?.type === 'video' || selectedMedia?.type === 'web' ? (
@@ -798,82 +747,146 @@ function ResponsePanel({
           ) : (
             <img className="artifact-image" src={artifactUrl} alt={selectedMedia?.title ?? 'Linus artifact'} />
           )}
-          {mediaItems.length > 1 ? (
+          {mediaItems.length > 1 && (
             <div className="artifact-grid">
-              {mediaItems.map((item, index) => (
+              {mediaItems.map((item, i) => (
                 <button
                   type="button"
-                  key={`${item.url}-${index}`}
-                  data-selected={index === selectedIndex}
-                  onClick={() => {
-                    setSelectedIndex(index);
-                    setArtifactOpen(true);
-                  }}
+                  key={`${item.url}-${i}`}
+                  data-selected={i === selectedIndex}
+                  onClick={() => { setSelectedIndex(i); setArtifactOpen(true); }}
                 >
                   {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" /> : <span>{item.type}</span>}
                 </button>
               ))}
             </div>
-          ) : null}
+          )}
         </div>
       ) : null}
       <p className={preview.error ? 'response-error' : undefined}>
         {preview.error ?? preview.responseText}
       </p>
-      {speechError ? <div className="speech-warning">Speech failed: {speechError}</div> : null}
+      {speechError ? <div className="speech-warning">⚠ Speech: {speechError}</div> : null}
     </motion.article>
   );
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Activity Strip
+// ────────────────────────────────────────────────────────────────────────────
 function ActivityStrip({ steps }: { steps: ActivityStep[] }): JSX.Element {
   return (
     <motion.div
       className="activity-strip"
-      initial={{ opacity: 0, y: -3 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -3 }}
-      transition={{ duration: 0.16 }}
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      transition={spring}
     >
       {steps.map((step) => (
-        <span className="activity-dot" data-status={step.status} key={step.id} title={step.label} />
+        <motion.span
+          className="activity-dot"
+          data-status={step.status}
+          key={step.id}
+          title={step.label}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={spring}
+        />
       ))}
     </motion.div>
   );
 }
 
-function ProviderIcon({ providerId }: { providerId: ProviderId }): JSX.Element {
-  const label = providerShortLabel(providerId);
+// ────────────────────────────────────────────────────────────────────────────
+// Real Provider Logo SVGs
+// ────────────────────────────────────────────────────────────────────────────
+function ProviderLogo({ providerId, size = 22 }: { providerId: ProviderId; size?: number }): JSX.Element {
   return (
-    <span className="provider-logo" data-provider={providerId} aria-label={providerId}>
-      {providerId === 'auto' ? <span className="auto-glyph">A</span> : label}
+    <span className="provider-logo" data-provider={providerId} aria-label={providerId} style={{ width: size, height: size }}>
+      <ProviderSvg providerId={providerId} size={size} />
     </span>
   );
 }
 
-function providerShortLabel(providerId: ProviderId): string {
-  const labels: Record<ProviderId, string> = {
-    auto: 'A',
-    groq: 'G',
-    gemini: '✦',
-    openrouter: 'OR',
-    ollama: 'Ol',
-    pollinations: 'P',
-    lla5: 'L5'
-  };
-
-  return labels[providerId] ?? 'A';
+function ProviderSvg({ providerId, size }: { providerId: ProviderId; size: number }): JSX.Element {
+  const s = size * 0.62;
+  switch (providerId) {
+    case 'groq':
+      // Groq lightning bolt
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path d="M13 2L4.5 13.5H11.5L10 22L19.5 10.5H12.5L13 2Z" fill="white" />
+        </svg>
+      );
+    case 'gemini':
+      // Google Gemini star
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path d="M12 2C12 2 13.8 8.2 20 12C13.8 15.8 12 22 12 22C12 22 10.2 15.8 4 12C10.2 8.2 12 2Z" fill="white" />
+        </svg>
+      );
+    case 'openrouter':
+      // OpenRouter stylised "OR" with two connected nodes
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <circle cx="6" cy="12" r="3" fill="white" />
+          <circle cx="18" cy="6" r="2.2" fill="rgba(255,255,255,0.75)" />
+          <circle cx="18" cy="18" r="2.2" fill="rgba(255,255,255,0.75)" />
+          <line x1="9" y1="10.5" x2="15.8" y2="7.2" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="9" y1="13.5" x2="15.8" y2="16.8" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'ollama':
+      // Ollama llama silhouette
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <ellipse cx="12" cy="17" rx="5" ry="4" fill="#374151" />
+          <circle cx="12" cy="9" r="4.2" fill="#374151" />
+          <ellipse cx="14.5" cy="6.5" rx="1.5" ry="2.5" fill="#374151" />
+          <circle cx="10.8" cy="8.2" r="0.7" fill="white" />
+        </svg>
+      );
+    case 'pollinations':
+      // Pollinations flower
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <circle cx="12" cy="12" r="2.5" fill="white" />
+          <ellipse cx="12" cy="6" rx="2" ry="3.5" fill="rgba(255,255,255,0.82)" />
+          <ellipse cx="12" cy="18" rx="2" ry="3.5" fill="rgba(255,255,255,0.82)" />
+          <ellipse cx="6" cy="12" rx="3.5" ry="2" fill="rgba(255,255,255,0.82)" />
+          <ellipse cx="18" cy="12" rx="3.5" ry="2" fill="rgba(255,255,255,0.82)" />
+          <ellipse cx="7.8" cy="7.8" rx="2" ry="3" fill="rgba(255,255,255,0.65)" transform="rotate(-45 7.8 7.8)" />
+          <ellipse cx="16.2" cy="16.2" rx="2" ry="3" fill="rgba(255,255,255,0.65)" transform="rotate(-45 16.2 16.2)" />
+        </svg>
+      );
+    case 'lla5':
+      // Lla-5 / Pollinations text model — simple "L5" glyph
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <text x="3" y="17" fontSize="12" fontWeight="800" fill="white" fontFamily="system-ui">L5</text>
+        </svg>
+      );
+    case 'auto':
+    default:
+      // Auto — animated spark
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" fill="white" />
+        </svg>
+      );
+  }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Utilities
+// ────────────────────────────────────────────────────────────────────────────
 function readAttachment(file: File): Promise<LinusAttachment> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
     reader.onload = () => {
-      resolve({
-        name: file.name,
-        mimeType: file.type,
-        dataUrl: String(reader.result)
-      });
+      resolve({ name: file.name, mimeType: file.type, dataUrl: String(reader.result) });
     };
     reader.readAsDataURL(file);
   });
@@ -885,21 +898,9 @@ function fileBadge(name: string): string {
 }
 
 function statusLabel(provider: ProviderOption): JSX.Element | string {
-  if (provider.status === 'needs-key') {
-    return 'Key';
-  }
-
-  if (provider.status === 'offline') {
-    return <CircleSlash size={13} />;
-  }
-
-  if (provider.status === 'needs-model') {
-    return 'Model';
-  }
-
-  if (provider.status === 'todo') {
-    return 'TODO';
-  }
-
+  if (provider.status === 'needs-key') return 'Key';
+  if (provider.status === 'offline') return <CircleSlash size={13} />;
+  if (provider.status === 'needs-model') return 'Model';
+  if (provider.status === 'todo') return '—';
   return '';
 }

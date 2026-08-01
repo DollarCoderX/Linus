@@ -4,6 +4,11 @@ import { join } from 'node:path';
 import type { ProviderId } from '../../shared/linus';
 import type { LinusEnv, TtsProviderChoice } from '../config/env';
 
+// Maximum characters Groq TTS can handle per request
+const GROQ_TTS_MAX_CHARS = 4000;
+// Maximum characters for a single Windows TTS call
+const WINDOWS_TTS_MAX_CHARS = 8000;
+
 export class TtsService {
   constructor(
     private readonly env: LinusEnv,
@@ -78,58 +83,70 @@ export class TtsService {
   }
 
   private async speakWithGroq(text: string): Promise<void> {
-    const input = buildGroqSpeechInput(text);
-    if (!input) {
+    // Clean the text but do NOT truncate to 200 chars — that caused half-speech cutoff
+    const chunks = buildGroqSpeechChunks(text);
+    if (chunks.length === 0) {
       return;
     }
 
     const voices = Array.from(new Set([this.env.groqTtsVoice, 'troy', 'hannah', 'austin'].filter(Boolean)));
-    let lastError: string | null = null;
 
-    for (const voice of voices) {
-      const requestBody = {
-        model: this.env.groqTtsModel,
-        voice,
-        input,
-        response_format: this.env.groqTtsResponseFormat
-      };
-      console.info(
-        `[Linus TTS] Requesting Groq TTS: model=${requestBody.model}, voice=${voice}, ` +
-        `input_length=${input.length}, response_format=${requestBody.response_format}`
-      );
-      const response = await fetch('https://api.groq.com/openai/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.env.groqTtsApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const detail = await response.text().catch(() => '');
-        const errorMsg = detail
-          ? `Groq TTS failed for voice ${voice} with HTTP ${response.status}: ${detail}`
-          : `Groq TTS failed for voice ${voice} with HTTP ${response.status}.`;
-        console.warn(`[Linus TTS] ${errorMsg}`);
-        lastError = errorMsg;
-        continue;
+    for (const chunk of chunks) {
+      // Stop if speech was cancelled between chunks
+      if (!activeSpeechAllowed) {
+        return;
       }
 
-      const audio = Buffer.from(await response.arrayBuffer());
-      const directory = join(this.cacheRoot, 'System', 'Cache', 'Voice');
-      mkdirSync(directory, { recursive: true });
-      const audioPath = join(directory, `linus-${Date.now()}.wav`);
-      writeFileSync(audioPath, audio);
-      await playAudioFile(audioPath);
-      return;
-    }
+      let lastError: string | null = null;
+      let succeeded = false;
 
-    throw new Error(lastError ?? 'Groq TTS failed for all configured voices.');
+      for (const voice of voices) {
+        const requestBody = {
+          model: this.env.groqTtsModel,
+          voice,
+          input: chunk,
+          response_format: this.env.groqTtsResponseFormat
+        };
+        console.info(
+          `[Linus TTS] Groq TTS chunk (${chunk.length} chars): model=${requestBody.model}, voice=${voice}`
+        );
+        const response = await fetch('https://api.groq.com/openai/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.env.groqTtsApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          const detail = await response.text().catch(() => '');
+          const errorMsg = detail
+            ? `Groq TTS failed for voice ${voice} with HTTP ${response.status}: ${detail}`
+            : `Groq TTS failed for voice ${voice} with HTTP ${response.status}.`;
+          console.warn(`[Linus TTS] ${errorMsg}`);
+          lastError = errorMsg;
+          continue;
+        }
+
+        const audio = Buffer.from(await response.arrayBuffer());
+        const directory = join(this.cacheRoot, 'System', 'Cache', 'Voice');
+        mkdirSync(directory, { recursive: true });
+        const audioPath = join(directory, `linus-${Date.now()}.wav`);
+        writeFileSync(audioPath, audio);
+        await playAudioFile(audioPath);
+        succeeded = true;
+        break;
+      }
+
+      if (!succeeded) {
+        throw new Error(lastError ?? 'Groq TTS failed for all configured voices.');
+      }
+    }
   }
 
   private async speakWithWindows(text: string): Promise<void> {
-    const input = text.replace(/\s+/g, ' ').trim();
+    const input = text.replace(/\s+/g, ' ').trim().slice(0, WINDOWS_TTS_MAX_CHARS);
     if (!input) {
       return;
     }
@@ -175,14 +192,18 @@ export class TtsService {
 }
 
 let activeSpeechProcess: ChildProcess | null = null;
+let activeSpeechAllowed = true;
 const interruptedSpeechProcesses = new WeakSet<ChildProcess>();
 
 function stopActiveSpeechProcess(): void {
+  activeSpeechAllowed = false;
   if (activeSpeechProcess && !activeSpeechProcess.killed) {
     interruptedSpeechProcesses.add(activeSpeechProcess);
     activeSpeechProcess.kill();
   }
   activeSpeechProcess = null;
+  // Re-allow speech for next invocation after a short tick
+  setTimeout(() => { activeSpeechAllowed = true; }, 50);
 }
 
 function runPowerShell(script: string): Promise<void> {
@@ -217,24 +238,36 @@ function runPowerShell(script: string): Promise<void> {
 
 async function playAudioFile(audioPath: string): Promise<void> {
   const escapedPath = escapePowerShell(audioPath);
+  // Use a robust dispatcher loop to wait for audio completion
+  // Increase timeout to 300s to handle long responses
   await runPowerShell(`
     try {
       Add-Type -AssemblyName PresentationCore;
       $player = New-Object System.Windows.Media.MediaPlayer;
-      $done = $false;
-      $failed = $false;
+      $script:done = $false;
+      $script:failed = $false;
       $player.add_MediaEnded({ $script:done = $true });
-      $player.add_MediaFailed({ $script:failed = $true; $script:done = $true });
+      $player.add_MediaFailed({ param($s,$e); $script:failed = $true; $script:done = $true });
       $uri = New-Object System.Uri('${escapedPath}');
       $player.Open($uri);
-      Start-Sleep -Milliseconds 250;
-      $player.Play();
-      $limit = (Get-Date).AddSeconds(45);
-      while (-not $done -and (Get-Date) -lt $limit) {
-        Start-Sleep -Milliseconds 100;
+      # Wait for media to be opened and natural duration to become available
+      $openDeadline = (Get-Date).AddSeconds(10);
+      while ($player.NaturalDuration.HasTimeSpan -eq $false -and (Get-Date) -lt $openDeadline) {
+        Start-Sleep -Milliseconds 50;
       }
+      $player.Play();
+      # Calculate expected duration in seconds + 5s buffer, capped at 300s
+      $expectedDuration = 15;
+      if ($player.NaturalDuration.HasTimeSpan) {
+        $expectedDuration = [Math]::Min(300, [Math]::Ceiling($player.NaturalDuration.TimeSpan.TotalSeconds) + 5);
+      }
+      $limit = (Get-Date).AddSeconds($expectedDuration);
+      while (-not $script:done -and (Get-Date) -lt $limit) {
+        Start-Sleep -Milliseconds 80;
+      }
+      $player.Stop();
       $player.Close();
-      if ($failed) {
+      if ($script:failed) {
         throw "MediaPlayer reported MediaFailed.";
       }
     } catch {
@@ -248,12 +281,53 @@ function escapePowerShell(value: string): string {
   return value.replace(/'/g, "''");
 }
 
-function buildGroqSpeechInput(text: string): string {
+/**
+ * Split text into chunks ≤ GROQ_TTS_MAX_CHARS, breaking on sentence boundaries.
+ * This replaces the old 200-char truncation that caused speech to cut off halfway.
+ */
+function buildGroqSpeechChunks(text: string): string[] {
   const clean = text.replace(/\s+/g, ' ').trim();
-  if (clean.length <= 200) {
-    return clean;
+  if (!clean) {
+    return [];
   }
 
-  const firstSentence = clean.match(/^.{40,180}?[.!?](?:\s|$)/)?.[0]?.trim();
-  return (firstSentence || clean.slice(0, 197)).slice(0, 200);
+  if (clean.length <= GROQ_TTS_MAX_CHARS) {
+    return [clean];
+  }
+
+  // Split on sentence endings, then reassemble into chunks
+  const sentences = clean.match(/[^.!?\n]+[.!?\n]*/g) ?? [clean];
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const sentence of sentences) {
+    if (current.length + sentence.length > GROQ_TTS_MAX_CHARS) {
+      if (current) {
+        chunks.push(current.trim());
+        current = '';
+      }
+      // If a single sentence is longer than max, hard-split it
+      if (sentence.length > GROQ_TTS_MAX_CHARS) {
+        const words = sentence.split(' ');
+        for (const word of words) {
+          if (current.length + word.length + 1 > GROQ_TTS_MAX_CHARS) {
+            if (current) chunks.push(current.trim());
+            current = word;
+          } else {
+            current = current ? `${current} ${word}` : word;
+          }
+        }
+      } else {
+        current = sentence;
+      }
+    } else {
+      current = current ? `${current}${sentence}` : sentence;
+    }
+  }
+
+  if (current.trim()) {
+    chunks.push(current.trim());
+  }
+
+  return chunks;
 }
