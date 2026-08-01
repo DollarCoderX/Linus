@@ -1,0 +1,60 @@
+{
+  "name": "linus-desktop-agent",
+  "version": "0.1.0",
+  "description": "Linus, a floating Windows AI desktop agent created by Shapes.",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "node scripts/run-electron-vite.cjs dev",
+    "build": "tsc --noEmit && electron-vite build",
+    "preview": "node scripts/run-electron-vite.cjs preview",
+    "dist": "npm run build && electron-builder",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "electron",
+    "ai",
+    "desktop-agent",
+    "linus"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "app.shapes.linus",
+    "productName": "Linus",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

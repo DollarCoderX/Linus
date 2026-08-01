@@ -1,0 +1,13 @@
+*NEW UPDATES*
+First for image generation groq(if available if not uses open router or pollination text) see the user messages and decide if this needs a powerful engine like gemini or pollination e.g generate a image of a cat goes to pollinatin somehing heavy with strong details goes to gemin and groq also updates both prompt for pollination and gemini, next when they generate image it doesnt open the web it shows a clean medium pop up image of the image , while the ai input ui merges with that medium image to form one ui with the image and the input down to edit the image using gemini and two buttons up to download image, share and a x button to cancel when cancle the input dismerge and goes back to normal clean ios style
+
+Next we are adding a SERPER_API_KEY for image searching, video, news and others inside it system without opening chrome, and u can tell it the amount of image or things u need default is two so example search for 5 images of a german sheperd it then when down a 5 medium small pop up of those images shows it different place in my pc and if i tap one it becomes bigger and the input area merge like generate image but different i can ask it to edit the image or search more like this and also as the up buttons and presing ctrl p makes all of them fade same as news, youtube video etc also we will ad google custom search api keys, alsothis desktop ai has 5 shells environment of his own include browser , his own note, coding env , powershell connected to my window but his shell, calculator it should be able to use it shell like human type interact and to avoid issues when doing task uses groq and other streaming so it like one request continously last this ai is still dumb make it smart by calling tools like i ask to open a folder named max it goes to the provider the provider thinks also user want me to open a folder named max then tells the system open_folder name max something like that bt human dont see this only is final respond
+mae it open any software, folder, file etc in pc as long as they exist
+also add more real skill plus allow custom skills, and chat skill etc
+
+Also the input color pattern show go like this does edge or border of the input has smal different colors flowing around with different style each task like google also every sub menu add tap anywhere to close 
+also try and make ollama faster also when ai is responding/thinking that arrow chnages to a stop box and also when ai is responding let it type respond as it type it talking and for some reason the voice gets cut off like it can be talking then just stops
+FINAL CHNAGE AI NAME TO LINUS EVERYTHING
+
+and more read INFO.MD FOR FULL DEATILS AND TAKE AWARE OF THIS AS WELL
+DO ALL TASK
