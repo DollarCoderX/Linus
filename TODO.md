@@ -1,42 +1,22 @@
-# Adaptive Interface Modes — Implementation Plan
+t# Linus Parallel Multi-Tool Execution — Implementation Plan
 
-## Steps
+## Phase 1: Shared Types & Brain
+- [x] 1. `src/shared/linus.ts` — Add `ParallelTask`, `ToolExecutionResult` types, update `LinusTaskPreview`
+- [x] 2. `src/main/tasks/toolPlanner.ts` — Rewrite to return `ToolPlanBatch` (array of up to 9 tools with priorities)
 
-### Step 1: Update Shared Types
-- [x] **File:** `src/shared/Linus.ts`
-- [x] **Changes:**
-  - Add `'expanded'` | `'workspace'` to `LinusWindowMode`
-  - Add `WorkspaceItem` and `WorkspaceSection` types
-  - Add `sidebarPanel` to `LinusAppState`
-  - Update `LinusBridge` with new methods
+## Phase 2: Execution Engine
+- [x] 3. NEW `src/main/tasks/parallelExecutor.ts` — Concurrent tool execution via `Promise.allSettled`
+- [x] 4. NEW `src/main/tasks/taskOrchestrator.ts` — Groups tools into parallel batches & dependency chains, tracks lifecycle
 
-### Step 2: Update Main Process
-- [ ] **File:** `src/main/index.ts`
-- [ ] **Changes:**
-  - Add `EXPANDED_SIZE` and `WORKSPACE_SIZE` constants
-  - Update `windowModes` to include new modes
-  - Update `resolveInitialBounds` and `setWindowMode`
-  - Add drag-to-top-edge detection for workspace mode
-  - Add IPC handlers for workspace/sidebar operations
+## Phase 3: Tool Arsenal
+- [x] 5. `src/main/tools/toolRegistry.ts` — Mark all implemented tools as ready
+- [x] 6. `src/main/tools/desktopTools.ts` — Add multi-launch, multi-folder, multi-note intents
 
-### Step 3: Update Preload Bridge
-- [ ] **File:** `src/preload/index.ts`
-- [ ] **Changes:**
-  - Add new IPC method bindings for workspace mode
+## Phase 4: Smart Routing
+- [x] 7. `src/main/ai/router.ts` — Intelligence-aware routing (smart for planning, fast for summarization)
 
-### Step 4: Update Renderer — App.tsx
-- [ ] **File:** `src/renderer/src/App.tsx`
-- [ ] **Changes:**
-  - Add `ExpandedAssistant` component (Mode 2)
-  - Add `DesktopWorkspace` component (Mode 3)
-  - Add drag-to-top detection in floating assistant
-  - Add shared element animations between modes
-  - Add sidebar navigation for workspace mode
-
-### Step 5: Update Styles
-- [ ] **File:** `src/renderer/src/styles.css`
-- [ ] **Changes:**
-  - Add styles for expanded assistant
-  - Add styles for desktop workspace (sidebar, center, toolbar)
-  - Add transition animations
-  - Add drag handle styles
+## Phase 5: Integration & UI
+- [x] 8. `src/main/index.ts` — Replace sequential if-chain with orchestrator + parallel executor
+- [x] 9. `src/renderer/src/App.tsx` — Render parallel task cards with live status
+</｜｜DSML｜｜>
+</create_file>

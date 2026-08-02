@@ -3,9 +3,12 @@ import type { AiProvider, ChatRequest, ChatResponse } from '../providers/types';
 
 export type RoutingPreference = 'auto' | 'fast' | 'smart' | 'local' | 'private';
 
+export type RoutingTask = 'plan' | 'execute' | 'summarize' | 'chat';
+
 export interface RouteRequest extends ChatRequest {
   preference: RoutingPreference;
   selectedProvider?: ProviderId;
+  task?: RoutingTask;
   requires?: {
     vision?: boolean;
     toolCalling?: boolean;
@@ -43,6 +46,17 @@ export class AiRouter {
 
     if (request.preference !== 'auto') {
       return this.pick([preferenceToProvider(request.preference), 'groq', 'openrouter', 'gemini', 'ollama', 'lla5']);
+    }
+
+    // Intelligence-aware routing by task type.
+    if (request.task === 'plan') {
+      // Planning needs the strongest reasoning — lead with smart providers.
+      return this.pick(['openrouter', 'gemini', 'groq', 'ollama', 'lla5']);
+    }
+
+    if (request.task === 'summarize') {
+      // Summarization is fast and concise — lead with the fastest providers.
+      return this.pick(['groq', 'lla5', 'openrouter', 'gemini', 'ollama']);
     }
 
     return this.pick(['groq', 'openrouter', 'gemini', 'ollama', 'lla5']);

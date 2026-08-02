@@ -16,6 +16,7 @@ import type {
   LinusAttachment,
   LinusTaskPreview,
   LinusUiState,
+  ParallelTask,
   ProviderId,
   ProviderOption,
   SkillOption

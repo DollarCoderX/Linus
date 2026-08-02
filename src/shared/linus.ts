@@ -48,6 +48,25 @@ export interface ActivityStep {
   status: 'done' | 'active' | 'pending' | 'error';
 }
 
+export type ParallelTaskStatus = 'queued' | 'running' | 'done' | 'error' | 'skipped';
+
+export interface ParallelTask {
+  id: string;
+  tool: string;
+  label: string;
+  status: ParallelTaskStatus;
+  result?: string;
+  error?: string;
+}
+
+export interface LinusToolResult {
+  tool: string;
+  label: string;
+  success: boolean;
+  result?: string;
+  error?: string;
+}
+
 export interface LinusTaskPreview {
   statusText: string;
   responseText?: string;
@@ -58,6 +77,7 @@ export interface LinusTaskPreview {
   error?: string;
   kind?: 'chat' | 'tool' | 'image';
   steps: ActivityStep[];
+  parallelTasks?: ParallelTask[];
 }
 
 export interface LinusMediaItem {

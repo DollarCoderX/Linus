@@ -25,6 +25,22 @@ export type DesktopIntent =
       type: 'open-target';
       target: string;
       label: string;
+    }
+  | {
+      type: 'launch-multiple-apps';
+      apps: Array<'notepad' | 'calculator' | 'terminal' | 'explorer'>;
+      label: string;
+    }
+  | {
+      type: 'create-multiple-folders';
+      folderNames: string[];
+      base: 'desktop' | 'documents' | 'downloads';
+      label: string;
+    }
+  | {
+      type: 'write-multiple-notes';
+      notes: Array<{ title?: string; text: string }>;
+      label: string;
     };
 
 export async function executeDesktopIntent(intent: DesktopIntent): Promise<string> {
@@ -56,19 +72,90 @@ export async function executeDesktopIntent(intent: DesktopIntent): Promise<strin
     return `Launched ${resolved.value}.`;
   }
 
-  const folderPath = resolve(basePath(intent.base), intent.folderName);
-  mkdirSync(folderPath, { recursive: true });
-  if (!existsSync(folderPath)) {
-    throw new Error(`Could not verify the folder at ${folderPath}.`);
+  if (intent.type === 'launch-multiple-apps') {
+    const launched: string[] = [];
+    for (const app of intent.apps) {
+      await launchApplication(app);
+      launched.push(appLabel(app));
+    }
+    return `Opened ${launched.join(', ')}.`;
   }
 
-  await shell.openPath(folderPath);
-  return `Created and opened the folder: ${folderPath}`;
+  if (intent.type === 'create-multiple-folders') {
+    const created: string[] = [];
+    for (const folderName of intent.folderNames) {
+      const folderPath = resolve(basePath(intent.base), folderName);
+      mkdirSync(folderPath, { recursive: true });
+      created.push(folderPath);
+    }
+
+    if (created.length > 0) {
+      await shell.openPath(created[created.length - 1]);
+    }
+
+    return `Created folders: ${created.join(', ')}.`;
+  }
+
+  if (intent.type === 'write-multiple-notes') {
+    const notesDir = join(homedir(), 'Documents', 'Linus Notes');
+    mkdirSync(notesDir, { recursive: true });
+    const saved: string[] = [];
+
+    for (const note of intent.notes) {
+      const filePath = join(
+        notesDir,
+        `${note.title ? sanitizeFilename(note.title) : 'note'}-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`
+      );
+      writeFileSync(filePath, note.text, 'utf8');
+      saved.push(filePath);
+    }
+
+    if (saved.length > 0) {
+      await launchProcess('notepad.exe', [saved[saved.length - 1]]);
+    }
+
+    return `Saved ${saved.length} note(s): ${saved.join(', ')}.`;
+  }
+
+  if (intent.type === 'create-folder') {
+    const folderPath = resolve(basePath(intent.base), intent.folderName);
+    mkdirSync(folderPath, { recursive: true });
+    if (!existsSync(folderPath)) {
+      throw new Error(`Could not verify the folder at ${folderPath}.`);
+    }
+
+    await shell.openPath(folderPath);
+    return `Created and opened the folder: ${folderPath}`;
+  }
+
+  return 'No desktop action was needed.';
 }
 
 export function detectDesktopIntent(prompt: string): DesktopIntent | null {
   const text = prompt.trim();
   const lower = text.toLowerCase();
+
+  const multiLaunchMatch = text.match(
+    /^open\s+(?:(?:notepad|calculator|calc|terminal|powershell|command\s+prompt|cmd|file\s+explorer|explorer)\s*(?:,\s*|\s+and\s+|\s*&\s*))+.+$/i
+  );
+  if (multiLaunchMatch) {
+    const appNames = text
+      .replace(/^open\s+/i, '')
+      .split(/\s*(?:,\s*|\s+and\s+|\s*&\s*)\s*/i)
+      .map((name) => name.trim())
+      .filter(Boolean);
+    const apps = appNames
+      .map(normalizeAppName)
+      .filter((app): app is 'notepad' | 'calculator' | 'terminal' | 'explorer' => app !== null);
+
+    if (apps.length >= 2) {
+      return {
+        type: 'launch-multiple-apps',
+        apps,
+        label: `Opening ${apps.map(appLabel).join(', ')}`
+      };
+    }
+  }
 
   const notepadWriteMatch = text.match(
     /^open\s+notepad\s+(?:and\s+)?(?:write|type)\s+(.+?)(?:\s+(?:then\s+)?save(?:\s+it)?\.?)?$/i
@@ -114,6 +201,34 @@ export function detectDesktopIntent(prompt: string): DesktopIntent | null {
       target: cleanupDictatedText(openTargetMatch[1]),
       label: `Opening ${openTargetMatch[1].trim()}`
     };
+  }
+
+  const multiFolderMatch = text.match(
+    /create\s+(?:the\s+)?folders?\s+(?:called|named)?\s*["']?([^"']+?)["']?(?:\s+in\s+(desktop|documents|downloads))?$/i
+  );
+  if (multiFolderMatch?.[1]) {
+    const folderNames = multiFolderMatch[1]
+      .split(/\s*(?:,\s*|\s+and\s+|\s+&\s*)\s*/i)
+      .map((name) => name.trim().replace(/["']/g, ''))
+      .filter(Boolean);
+
+    if (folderNames.length >= 2) {
+      return {
+        type: 'create-multiple-folders',
+        folderNames,
+        base: folderBase(multiFolderMatch[2]),
+        label: 'Creating multiple folders'
+      };
+    }
+
+    if (folderNames.length === 1) {
+      return {
+        type: 'create-folder',
+        folderName: folderNames[0],
+        base: folderBase(multiFolderMatch[2]),
+        label: 'Creating a folder'
+      };
+    }
   }
 
   const folderMatch = text.match(/create\s+(?:a\s+)?folder\s+(?:called|named)?\s*["']?([^"']+?)["']?(?:\s+in\s+(desktop|documents|downloads))?$/i);
@@ -197,6 +312,31 @@ function cleanupDictatedText(value: string): string {
   return value
     .replace(/\s+(?:then\s+)?save(?:\s+it)?\.?$/i, '')
     .trim();
+}
+
+function sanitizeFilename(value: string): string {
+  return value
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+}
+
+function normalizeAppName(value: string): 'notepad' | 'calculator' | 'terminal' | 'explorer' | null {
+  const normalized = value.toLowerCase().trim();
+  if (/^notepad$/.test(normalized)) {
+    return 'notepad';
+  }
+  if (/^(calculator|calc)$/.test(normalized)) {
+    return 'calculator';
+  }
+  if (/^(terminal|powershell|command\s*prompt|cmd)$/.test(normalized)) {
+    return 'terminal';
+  }
+  if (/^(file\s*explorer|explorer)$/.test(normalized)) {
+    return 'explorer';
+  }
+  return null;
 }
 
 function folderBase(value?: string): 'desktop' | 'documents' | 'downloads' {

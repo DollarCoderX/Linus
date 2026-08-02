@@ -25,7 +25,8 @@ import {
 } from './settings/appData';
 import { skillInstructions, skillOptions } from './skills/skillRegistry';
 import { detectLocalIntent } from './tasks/intentRouter';
-import { planToolWithProvider, type PlannedTool } from './tasks/toolPlanner';
+import { planToolBatchWithProvider, type PlannedTool } from './tasks/toolPlanner';
+import { buildPreviewFromOrchestration, orchestrateTask } from './tasks/taskOrchestrator';
 import { splitAttachments } from './tools/attachmentReader';
 import { detectDesktopIntent, executeDesktopIntent } from './tools/desktopTools';
 import { detectImageIntent, generateImage } from './tools/imageGeneration';
@@ -428,10 +429,31 @@ function registerIpc(): void {
         };
       }
 
-      const plannedTool = await planToolWithProvider(normalizedPrompt, aiRouter, settings.selectedProvider);
-      const plannedResponse = plannedTool ? await executePlannedTool(normalizedPrompt, plannedTool) : null;
-      if (plannedResponse) {
-        return plannedResponse;
+      const plannedBatch = await planToolBatchWithProvider(normalizedPrompt, aiRouter, settings.selectedProvider);
+      if (plannedBatch) {
+        const orchestration = await orchestrateTask(plannedBatch, {
+          browserAutomation,
+          env,
+          appDataRoot
+        });
+
+        if (orchestration.parallelTasks.length > 0) {
+          setUiState('success');
+          const finalResponse = await finalizeToolResponse(
+            normalizedPrompt,
+            'parallel_tools',
+            orchestration.aggregateSummary
+          );
+          await rememberTask(normalizedPrompt, orchestration.aggregateSummary || finalResponse.content);
+          speakResponse(finalResponse.content, finalResponse.provider);
+          setTimeout(() => setUiState('idle'), env.speakResponses ? 3200 : 1200);
+
+          return buildPreviewFromOrchestration(
+            orchestration,
+            `Executed ${orchestration.parallelTasks.length} task(s) in parallel`,
+            `planner + ${finalResponse.model}`
+          );
+        }
       }
 
       const desktopIntent = detectDesktopIntent(normalizedPrompt);
@@ -640,6 +662,10 @@ async function executePlannedTool(
     };
   }
 
+  if (plannedTool.type !== 'browser') {
+    return null;
+  }
+
   const result = await browserAutomation.open(plannedTool.request);
   const finalResponse = await finalizeToolResponse(prompt, 'browser.open', `${result}.`);
   await rememberTask(prompt, finalResponse.content);
@@ -700,6 +726,7 @@ async function finalizeToolResponse(
     return await aiRouter.route({
       preference: 'auto',
       selectedProvider: settings.selectedProvider,
+      task: 'summarize',
       messages: [
         {
           role: 'system',

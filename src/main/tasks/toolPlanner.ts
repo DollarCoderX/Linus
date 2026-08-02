@@ -14,8 +14,31 @@ export type PlannedTool =
       intent: DesktopIntent;
     }
   | {
+      type: 'web-search';
+      label: string;
+      query: string;
+    }
+  | {
+      type: 'image-generate';
+      label: string;
+      prompt: string;
+    }
+  | {
       type: 'chat';
     };
+
+export interface PlannedToolBatch {
+  tools: PlannedTool[];
+  mode: 'parallel' | 'sequential' | 'mixed';
+}
+
+export type ToolExecutionMode = 'parallel' | 'after';
+
+export interface PrioritizedTool {
+  tool: PlannedTool;
+  mode: ToolExecutionMode;
+  priority: number;
+}
 
 interface ToolPlanJson {
   tool?: string;
@@ -28,28 +51,40 @@ interface ToolPlanJson {
   text?: string;
   folderName?: string;
   base?: 'desktop' | 'documents' | 'downloads';
+  prompt?: string;
 }
 
-export async function planToolWithProvider(
+interface ToolBatchPlanJson {
+  tasks?: ToolPlanJson[];
+  mode?: 'parallel' | 'sequential' | 'mixed';
+}
+
+const MAX_PARALLEL_TOOLS = 9;
+
+export async function planToolBatchWithProvider(
   prompt: string,
   aiRouter: AiRouter,
   selectedProvider: ProviderId
-): Promise<PlannedTool | null> {
+): Promise<PlannedToolBatch | null> {
   try {
     const response = await aiRouter.route({
       preference: 'auto',
       selectedProvider,
+      task: 'plan',
       messages: [
         {
           role: 'system',
           content: [
-            'You are Linus tool planner. Return only compact JSON.',
-            'Choose one safe tool from: chat, browser.search, browser.open_url, browser.open, desktop.launch_app, desktop.open_target, desktop.notepad_note, desktop.create_folder.',
-            'Do not invent unsupported tools. If the request needs unsupported automation, return {"tool":"chat"}.',
+            'You are Linus parallel tool planner. Return only compact JSON.',
+            'Break the user request into a JSON object with a "tasks" array of tool calls.',
+            'Choose up to 9 independent tools from: chat, browser.search, browser.open_url, browser.open, desktop.launch_app, desktop.open_target, desktop.notepad_note, desktop.create_folder, web.serper_search, image.generate.',
+            'Run independent tasks in parallel. Use mode "parallel" when tasks do not depend on each other.',
+            'Only chain tasks ("sequential" mode) when one result is required by a later task.',
+            'Do not invent unsupported tools. If nothing needs a tool, return {"tasks":[{"tool":"chat"}],"mode":"parallel"}.',
             'Use browser values: primary, chrome, edge, firefox.',
             'Use app values: notepad, calculator, terminal, explorer.',
             'Use base values: desktop, documents, downloads.',
-            'Set confidence from 0 to 1.'
+            'Set confidence from 0 to 1 for each task.'
           ].join(' ')
         },
         {
@@ -59,23 +94,44 @@ export async function planToolWithProvider(
       ]
     });
 
-    return normalizePlan(parseJsonPlan(response.content));
+    return normalizeBatch(parseJsonBatch(response.content));
   } catch {
     return null;
   }
 }
 
-function parseJsonPlan(content: string): ToolPlanJson | null {
+function parseJsonBatch(content: string): ToolBatchPlanJson | null {
   const match = content.match(/\{[\s\S]*\}/);
   if (!match) {
     return null;
   }
 
   try {
-    return JSON.parse(match[0]) as ToolPlanJson;
+    return JSON.parse(match[0]) as ToolBatchPlanJson;
   } catch {
     return null;
   }
+}
+
+function normalizeBatch(batch: ToolBatchPlanJson | null): PlannedToolBatch | null {
+  if (!batch || !Array.isArray(batch.tasks)) {
+    return null;
+  }
+
+  const tools = batch.tasks
+    .map((task) => normalizePlan(task))
+    .filter((tool): tool is PlannedTool => tool !== null);
+
+  if (tools.length === 0) {
+    return null;
+  }
+
+  const safeTools = tools.slice(0, MAX_PARALLEL_TOOLS);
+
+  return {
+    tools: safeTools,
+    mode: batch.mode === 'sequential' ? 'sequential' : batch.mode === 'mixed' ? 'mixed' : 'parallel'
+  };
 }
 
 function normalizePlan(plan: ToolPlanJson | null): PlannedTool | null {
@@ -151,6 +207,24 @@ function normalizePlan(plan: ToolPlanJson | null): PlannedTool | null {
         base: normalizeBase(plan.base),
         label: 'Creating a folder'
       }
+    };
+  }
+
+  if (plan.tool === 'web.serper_search' && (plan.query || plan.text)) {
+    const query = plan.query?.trim() || plan.text?.trim() || '';
+    return {
+      type: 'web-search',
+      label: `Searching for "${query}"`,
+      query
+    };
+  }
+
+  if (plan.tool === 'image.generate' && (plan.prompt || plan.text || plan.query)) {
+    const prompt = plan.prompt?.trim() || plan.text?.trim() || plan.query?.trim() || '';
+    return {
+      type: 'image-generate',
+      label: 'Generating an image',
+      prompt
     };
   }
 
