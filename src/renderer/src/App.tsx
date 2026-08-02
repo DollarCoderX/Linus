@@ -309,7 +309,7 @@ export function App(): JSX.Element {
         className="linus-stack drag-region"
         initial={{ opacity: 0, y: -10, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={softSpring}
+        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
       >
         {/* Main input bar */}
         <form
@@ -442,7 +442,7 @@ export function App(): JSX.Element {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              transition={softSpring}
+            transition={{ duration: 0.16 }}
             >
               {attachments.map((att, i) => (
                 <motion.button
@@ -455,7 +455,7 @@ export function App(): JSX.Element {
                   initial={{ scale: 0.7, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.7, opacity: 0 }}
-                  transition={spring}
+                  transition={{ duration: 0.16 }}
                   onClick={() => removeAttachment(i)}
                 >
                   {att.mimeType.startsWith('image/') ? (
@@ -542,8 +542,7 @@ function Orb({ state, provider, onExpand }: {
         animate={{ opacity: 1, scale: 1 }}
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.93 }}
-        transition={spring}
-      >
+         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}      >
         <ProviderLogo providerId={provider?.id ?? 'auto'} size={26} />
       </motion.button>
     </main>
@@ -564,7 +563,7 @@ function ProviderSelector({ selected, providers, onSelect }: {
       initial={{ opacity: 0, y: -6, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -4, scale: 0.97 }}
-      transition={softSpring}
+      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
     >
       {providers.map((provider) => (
         <motion.button
@@ -603,7 +602,7 @@ function CommandPalette({ onSelect }: {
       initial={{ opacity: 0, y: -6, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -4, scale: 0.97 }}
-      transition={softSpring}
+      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
     >
       {commandItems.map((command) => (
         <button className="command-option" type="button" key={command.id} onClick={() => onSelect(command)}>
@@ -632,7 +631,7 @@ function SkillPalette({ skills, activeSkill, onSelect }: {
       initial={{ opacity: 0, y: -6, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -4, scale: 0.97 }}
-      transition={softSpring}
+      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
     >
       {skills.map((skill) => (
         <button
@@ -723,7 +722,7 @@ function ResponsePanel({ preview, speechError }: {
       initial={{ opacity: 0, y: 10, scale: 0.97, filter: 'blur(6px)' }}
       animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
       exit={{ opacity: 0, y: 6, scale: 0.97, filter: 'blur(4px)' }}
-      transition={softSpring}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="response-meta">
         <span>{preview.providerName ?? 'Linus'}</span>
@@ -781,7 +780,7 @@ function ActivityStrip({ steps }: { steps: ActivityStep[] }): JSX.Element {
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
-      transition={spring}
+      transition={{ duration: 0.16 }}
     >
       {steps.map((step) => (
         <motion.span
@@ -791,7 +790,7 @@ function ActivityStrip({ steps }: { steps: ActivityStep[] }): JSX.Element {
           title={step.label}
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          transition={spring}
+      transition={{ duration: 0.16 }}
         />
       ))}
     </motion.div>

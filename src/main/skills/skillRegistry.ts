@@ -11,6 +11,15 @@ export interface LinusSkill extends SkillOption {
 
 export const initialSkills: LinusSkill[] = [
   {
+    id: 'auto',
+    name: 'Auto',
+    description: 'Multi Purpose, Reasoning, and Web searching.',
+    capabilities: ['conversation', 'planning', 'code-reading', 'code-editing','file-search', 'file-organization'],
+    allowedTools: [],
+    enabled: true,
+    instructions: 'Hold a natural conversation. Use tools only when the user clearly asks for action or current/local information.'
+  },
+  {
     id: 'assistant',
     name: 'Assistant',
     description: 'General conversation, task understanding, and response drafting.',
@@ -56,7 +65,7 @@ export const initialSkills: LinusSkill[] = [
     instructions: 'Prefer browser/search actions for web requests and verify visible outcomes where implemented.'
   },
   {
-    id: 'file-manager',
+    id: 'manager',
     name: 'File Manager',
     description: 'Finds, organizes, creates, edits, moves, and deletes files with permission checks.',
     capabilities: ['file-search', 'file-organization', 'file-verification'],
